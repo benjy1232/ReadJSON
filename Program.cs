@@ -1,14 +1,21 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using Newtonsoft.Json;
+using MetaBrainz;
+using MetaBrainz.Common;
+using MetaBrainz.ListenBrainz;
+
+// string MusicHist = Console.ReadLine();
+string MusicHist = "music-history.json";
 
 // This is going to be the area that contains the actual code
-string MusicHistory = File.ReadAllText("music-history.json");
+string MusicHistory = File.ReadAllText(MusicHist);
 List<JsonLayout> History = JsonConvert.DeserializeObject<List<JsonLayout>>(MusicHistory);
 Console.WriteLine(History.Count);
 
 string temp = JsonConvert.SerializeObject(History, Formatting.Indented);
 List<JsonLayout> YTHistory = new();
 List<NeededInformation> YTMHistory = new();
+List<NeededInformation> UploadedSongs = new();
 
 File.Create("output.json").Close();
 File.WriteAllText("output.json", temp);
@@ -22,7 +29,15 @@ foreach(JsonLayout x in History)
     else
     {
         NeededInformation ytmInfo = new(x);
-        YTMHistory.Add(ytmInfo);
+        if(ytmInfo.artist == "Music Library Uploads")
+        {
+            UploadedSongs.Add(ytmInfo);
+        }
+        else
+        {
+            YTMHistory.Add(ytmInfo);
+        }
+        
     }
 }
 
@@ -36,6 +51,11 @@ temp = JsonConvert.SerializeObject(YTMHistory, Formatting.Indented);
 File.Create("YouTubeMusic.json").Close();
 File.WriteAllText("YouTubeMusic.json", temp);
 
+temp = JsonConvert.SerializeObject(UploadedSongs, Formatting.Indented);
+
+File.Create("UploadedYTM.json").Close();
+File.WriteAllText("UploadedYTM.json", temp);
+
 public class JsonLayout
 {
     public string header { get; set; }
@@ -45,6 +65,7 @@ public class JsonLayout
     {
         header = "";
         title = "";
+        time = "";
     }
     public string time { get; set; }
 }
@@ -78,6 +99,10 @@ public class NeededInformation
             {
                 artist = artist.TrimEnd(charArr);
             }
+        }
+        else
+        {
+            artist = "";
         }
         if(title.Contains("Watched "))
         {
