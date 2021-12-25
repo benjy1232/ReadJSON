@@ -5,6 +5,8 @@ It is currently reads the file from "music-history.json" just cause that's what 
 
 I would rather keep this as a cli tool as to keep it cross platform as long as you have the dotnet runtime.
 
+Currently works but only through 30 json files - will see how many songs that is
+
 __TODO__
 - Take in command-line arguments
 - Implement functionality with ListenBrainz
