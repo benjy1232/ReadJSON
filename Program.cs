@@ -56,6 +56,7 @@ File.Create("output.json").Close();
 File.WriteAllText("output.json", temp);
 
 int i = 0;
+int j = 0;
 foreach (JsonLayout x in History)
 {
     if (x.header == "YouTube")
@@ -64,6 +65,7 @@ foreach (JsonLayout x in History)
     }
     else
     {
+        i += 1;
         NeededInformation ytmInfo = new(x);
         if (ytmInfo.track_metadata.artist_name == "Music Library Uploads")
         {
@@ -74,7 +76,7 @@ foreach (JsonLayout x in History)
                 ytmInfo.track_metadata.artist_name = artist;
                 if (artist == null)
                 {
-                    ytmInfo.track_metadata.artist_name = "";
+                    ytmInfo.track_metadata.artist_name = "Unknown";
                 }
                 UploadedSongs.Add(ytmInfo);
                 YTMHistory.Add(ytmInfo);
@@ -85,20 +87,30 @@ foreach (JsonLayout x in History)
             YTMHistory.Add(ytmInfo);
         }
     }
+
     if (Encoding.UTF8.GetByteCount(JsonConvert.SerializeObject(YTMHistory)) > 10200)
     {
         temp = JsonConvert.SerializeObject(YTMHistory);
         string toInsert = $"{ToJson} {temp} \n}}";
         File.Create($"JsonOut/{i}.json").Close();
         File.WriteAllText($"JsonOut/{i}.json", toInsert);
-        i += 1;
         YTMHistory.Clear();
+	    j += 1;
         StringContent ToSend = new(toInsert, Encoding.UTF8, "application/json");
+	if(i > 2686)
+	{
+        Thread.Sleep(10000);
+        i = 0;
+	}
         var response = await client.PostAsync($"http://{ROOT}/1/submit-listens", ToSend);
 
         string result = response.Content.ReadAsStringAsync().Result;
 
-        Console.WriteLine(result);
+        Console.WriteLine($"{result} \n{j}");
+	if(j < 30)
+	{
+	    Console.WriteLine($"{i} songs added");
+	}
     }
 }
 
