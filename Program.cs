@@ -8,7 +8,7 @@ using System.Web;
 string ROOT = "api.listenbrainz.org";
 string MusicHist = "music-history.json";
 Console.WriteLine("Enter User ID Token: ");
-token = Console.ReadLine();
+string token = Console.ReadLine();
 
 // This is going to be the area that contains the actual code
 string MusicHistory = File.ReadAllText(MusicHist);
