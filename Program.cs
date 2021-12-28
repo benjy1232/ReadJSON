@@ -1,14 +1,14 @@
-﻿// See https://aka.ms/new-console-template for more information
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using MetaBrainz.ListenBrainz;
 using Microsoft.VisualBasic.FileIO;
 using System.Text;
 using System.Net.Http;
 using System.Web;
 
-string ROOT = "localhost:7000";
-string token = "623c1fd1-6942-4047-91ad-ea30aabd9d1d";
+string ROOT = "api.listenbrainz.org";
 string MusicHist = "music-history.json";
+Console.WriteLine("Enter User ID Token: ");
+token = Console.ReadLine();
 
 // This is going to be the area that contains the actual code
 string MusicHistory = File.ReadAllText(MusicHist);
@@ -74,10 +74,6 @@ foreach (JsonLayout x in History)
                 string artist;
                 Artist.TryGetValue(ytmInfo.track_metadata.track_name, out artist);
                 ytmInfo.track_metadata.artist_name = artist;
-                if (artist == null)
-                {
-                    ytmInfo.track_metadata.artist_name = "Unknown";
-                }
                 UploadedSongs.Add(ytmInfo);
                 YTMHistory.Add(ytmInfo);
             }
@@ -95,26 +91,24 @@ foreach (JsonLayout x in History)
         File.Create($"JsonOut/{i}.json").Close();
         File.WriteAllText($"JsonOut/{i}.json", toInsert);
         YTMHistory.Clear();
-	    j += 1;
+        j += 1;
         StringContent ToSend = new(toInsert, Encoding.UTF8, "application/json");
-	if(i > 2686)
-	{
-        Thread.Sleep(10000);
-        i = 0;
-	}
-        var response = await client.PostAsync($"http://{ROOT}/1/submit-listens", ToSend);
+        if (i > 2686)
+        {
+            Thread.Sleep(10000);
+            i = 0;
+        }
+        var response = await client.PostAsync($"https://{ROOT}/1/submit-listens", ToSend);
 
         string result = response.Content.ReadAsStringAsync().Result;
 
         Console.WriteLine($"{result} \n{j}");
-	if(j < 30)
-	{
-	    Console.WriteLine($"{i} songs added");
-	}
+        if (j < 30)
+        {
+         Console.WriteLine($"{i} songs added");
+        }
     }
 }
-
-ListenBrainz.DefaultUserToken = token;
 
 public class JsonLayout
 {
@@ -169,6 +163,10 @@ public class NeededInformation
         {
             track_metadata.track_name = track_metadata.track_name.Remove(0, 8);
         }
+        if (track_metadata.artist_name == null)
+        {
+            track_metadata.artist_name = "Unknown";
+        }
     }
 }
 
@@ -178,7 +176,7 @@ public class track_metadata
     public string artist_name { get; set; }
     public track_metadata()
     {
-        track_name="";
-        artist_name="";
+        track_name = "";
+        artist_name = "";
     }
 }
