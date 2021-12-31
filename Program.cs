@@ -2,7 +2,7 @@
 using Microsoft.VisualBasic.FileIO;
 using System.Text;
 
-string ROOT = "localhost:7000";
+string ROOT = "api.listenbrainz.org";
 string MusicHist = "music-history.json";
 Console.WriteLine("Enter User ID Token: ");
 string? token = Console.ReadLine();
@@ -103,7 +103,7 @@ foreach (FromYTJson x in History)
             Thread.Sleep(10000);
             i = 0;
         }
-        var response = await client.PostAsync($"http://{ROOT}/1/submit-listens", ToSend);
+        var response = await client.PostAsync($"https://{ROOT}/1/submit-listens", ToSend);
 
         string result = response.Content.ReadAsStringAsync().Result;
 
