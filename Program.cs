@@ -1,25 +1,31 @@
 ﻿using Newtonsoft.Json;
-using MetaBrainz.ListenBrainz;
 using Microsoft.VisualBasic.FileIO;
 using System.Text;
-using System.Net.Http;
-using System.Web;
 
-string ROOT = "api.listenbrainz.org";
+string ROOT = "localhost:7000";
 string MusicHist = "music-history.json";
 Console.WriteLine("Enter User ID Token: ");
-string token = Console.ReadLine();
+string? token = Console.ReadLine();
 
-// This is going to be the area that contains the actual code
+if(token == null)
+{
+    Console.WriteLine("No token input, exiting");
+    return;
+}
+
 string MusicHistory = File.ReadAllText(MusicHist);
-List<JsonLayout> History = JsonConvert.DeserializeObject<List<JsonLayout>>(MusicHistory);
+List<FromYTJson>? History = JsonConvert.DeserializeObject<List<FromYTJson>>(MusicHistory);
+
+if(History == null)
+{
+    Console.WriteLine("File not present or empty");
+    Console.WriteLine("Exiting Program");
+    return;
+}
 
 string temp = JsonConvert.SerializeObject(History, Formatting.Indented);
-List<JsonLayout> YTHistory = new();
-List<NeededInformation> YTMHistory = new();
-List<NeededInformation> UploadedSongs = new();
+List<ToListenBrainz> YTMHistory = new();
 Dictionary<string, string> Artist = new();
-string csvInformation = File.ReadAllText("music-uploads-metadata.csv");
 
 HttpClient client = new();
 client.DefaultRequestHeaders.Authorization = new("Token", token);
@@ -32,53 +38,52 @@ using (TextFieldParser parser = new("music-uploads-metadata.csv"))
     parser.ReadFields();
     while (!parser.EndOfData)
     {
-        string[] fields = parser.ReadFields();
+        string[]? fields = parser.ReadFields();
 
-        try
+        if(fields != null)
         {
             string SongTitle = fields[0].Trim();
-            string artist = fields[2].Trim();
+            string SongArtist = fields[2].Trim();
 
-            Artist[SongTitle] = artist;
-        }
-        catch (Exception)
-        {
-            Console.WriteLine("Error");
+            if(!Artist.TryAdd(SongTitle, SongArtist))
+            {
+                Artist.Remove(SongArtist);
+            }
+
         }
 
     }
 }
+
 string ToJson = @"{
     ""listen_type"": ""import"",
     ""payload"":";
 
-File.Create("output.json").Close();
-File.WriteAllText("output.json", temp);
-
 int i = 0;
 int j = 0;
-foreach (JsonLayout x in History)
+foreach (FromYTJson x in History)
 {
-    if (x.header == "YouTube")
-    {
-        YTHistory.Add(x);
-    }
-    else
+    if(x.header != "YouTube")
     {
         i += 1;
-        NeededInformation ytmInfo = new(x);
+        ToListenBrainz ytmInfo = new(x);
         if (ytmInfo.track_metadata.artist_name == "Music Library Uploads")
         {
-            if (ytmInfo.track_metadata.track_name != "Ghost" || ytmInfo.track_metadata.track_name != "Prelude")
+            string? artist;
+            Artist.TryGetValue(ytmInfo.track_metadata.track_name, out artist);
+            if(artist != null)
             {
-                string artist;
-                Artist.TryGetValue(ytmInfo.track_metadata.track_name, out artist);
                 ytmInfo.track_metadata.artist_name = artist;
-                UploadedSongs.Add(ytmInfo);
-                YTMHistory.Add(ytmInfo);
             }
+            else
+            {
+                ytmInfo.track_metadata.artist_name = "Unknown";
+            }
+            YTMHistory.Add(ytmInfo);
         }
-        else
+        // This check is to prevent songs for from where the artist is no longer known
+        // from being added to the list as to prevent errors during import.
+        else if(!ytmInfo.track_metadata.track_name.Contains("https"))
         {
             YTMHistory.Add(ytmInfo);
         }
@@ -88,8 +93,8 @@ foreach (JsonLayout x in History)
     {
         temp = JsonConvert.SerializeObject(YTMHistory);
         string toInsert = $"{ToJson} {temp} \n}}";
-        File.Create($"JsonOut/{i}.json").Close();
-        File.WriteAllText($"JsonOut/{i}.json", toInsert);
+        File.Create($"JsonOut/{j}.json").Close();
+        File.WriteAllText($"JsonOut/{j}.json", toInsert);
         YTMHistory.Clear();
         j += 1;
         StringContent ToSend = new(toInsert, Encoding.UTF8, "application/json");
@@ -98,7 +103,7 @@ foreach (JsonLayout x in History)
             Thread.Sleep(10000);
             i = 0;
         }
-        var response = await client.PostAsync($"https://{ROOT}/1/submit-listens", ToSend);
+        var response = await client.PostAsync($"http://{ROOT}/1/submit-listens", ToSend);
 
         string result = response.Content.ReadAsStringAsync().Result;
 
@@ -110,18 +115,20 @@ foreach (JsonLayout x in History)
     }
 }
 
-public class JsonLayout
+// Should I take in the URL for the song?
+public class FromYTJson
 {
     public string header { get; set; }
     public string title { get; set; }
-    public subtitles[] subtitles { get; set; }
-    public JsonLayout()
+    public List<subtitles> subtitles { get; set; }
+    public string time { get; set; }
+    public FromYTJson()
     {
         header = "";
         title = "";
         time = "";
+        subtitles = new();
     }
-    public string time { get; set; }
 }
 
 public class subtitles
@@ -135,11 +142,11 @@ public class subtitles
     }
 }
 
-public class NeededInformation
+public class ToListenBrainz
 {
     public track_metadata track_metadata { get; set; }
     public long listened_at { get; set; }
-    public NeededInformation(JsonLayout temp)
+    public ToListenBrainz(FromYTJson temp)
     {
         track_metadata = new();
         track_metadata.track_name = temp.title;
@@ -148,16 +155,19 @@ public class NeededInformation
         listened_at = ((DateTimeOffset)_time).ToUnixTimeSeconds();
         if (temp.subtitles != null)
         {
-            track_metadata.artist_name = temp.subtitles[0].name;
-            if (track_metadata.artist_name.Contains("- Topic"))
+            try
             {
-                int numChar = track_metadata.artist_name.Count();
-                track_metadata.artist_name = track_metadata.artist_name.Remove(numChar - 8, 8);
+                track_metadata.artist_name = temp.subtitles.ElementAt(0).name;
+                if (track_metadata.artist_name.Contains("- Topic"))
+                {
+                    int numChar = track_metadata.artist_name.Count();
+                    track_metadata.artist_name = track_metadata.artist_name.Remove(numChar - 8, 8);
+                }
             }
-        }
-        else
-        {
-            track_metadata.artist_name = "";
+            catch(Exception)
+            {
+                Console.WriteLine(track_metadata.track_name);
+            }
         }
         if (track_metadata.track_name.Contains("Watched "))
         {
