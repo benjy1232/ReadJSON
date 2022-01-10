@@ -13,4 +13,3 @@ Now that it is able to properly communicate with ListenBrainz, the next major st
 __TODO__
 - Take in command-line arguments
 - Publish a dll or "stable" release
-- Interact with YouTube API (Skip all the Google Takeout wait)
